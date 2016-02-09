@@ -27,22 +27,35 @@ using System.IO;
 using System.Reflection;
 using ActionMailerNext.Interfaces;
 using ActionMailerNext.Standalone;
+using ActionMailerNext.Standalone.Helpers;
 
 namespace ActionMailerNext.Tests.Standalone
 {
     public class TestMailerBase : RazorMailerBase
     {
-        public TestMailerBase(IMailAttributes attributes = null, IMailSender sender = null)
+        public TestMailerBase(MailAttributes attributes = null, IMailSender sender = null)
             : base(attributes, sender)
         {
         }
 
-        public override string ViewPath
+        public override string GlobalViewPath
         {
             get
             {
-                return Path.Combine(Assembly.GetExecutingAssembly().FullName, "..", "..", "..", "Standalone",
-                    "TestViews");
+                return Path.Combine(Directory.GetCurrentDirectory(),"Standalone", "TestViews");
+            }
+        }
+
+        public override ViewSettings ViewSettings
+        {
+            get
+            {
+                return new ViewSettings
+                {
+                    Hostname = "test.com",
+                    Protocol = "http",
+                    UrlPattern = "{controller}/{action}/{id}"
+                };
             }
         }
     }

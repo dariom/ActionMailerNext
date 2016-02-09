@@ -26,11 +26,10 @@
 using System;
 using ActionMailerNext.Implementations.SMTP;
 using ActionMailerNext.Interfaces;
-using ActionMailerNext.Mvc5_1;
 using FakeItEasy;
 using NUnit.Framework;
 
-namespace ActionMailer.Net.Mvc5_1.Tests.Mvc5_1
+namespace ActionMailerNext.Mvc5_1.Tests
 {
     [TestFixture]
     public class EmailResultTests
@@ -41,7 +40,7 @@ namespace ActionMailer.Net.Mvc5_1.Tests.Mvc5_1
             var mockSender = A.Fake<IMailSender>();
 
             Assert.Throws<ArgumentNullException>(
-                () => { new EmailResult(null, mockSender, new SmtpMailAttributes(), "View", "Master", null, true); });
+                () => { new EmailResult(null, mockSender, new MailAttributes(), "View", "Master", null, true); });
         }
 
         [Test]
@@ -62,7 +61,7 @@ namespace ActionMailer.Net.Mvc5_1.Tests.Mvc5_1
             Assert.Throws<ArgumentNullException>(
                 () =>
                 {
-                    new EmailResult(mockInterceptor, null, new SmtpMailAttributes(), "View", "Master", null, true);
+                    new EmailResult(mockInterceptor, null, new MailAttributes(), "View", "Master", null, true);
                 });
         }
     }

@@ -1,10 +1,14 @@
 ﻿using System;
+using ActionMailerNext.Implementations.SMTP;
 using ActionMailerNext.Interfaces;
+using ActionMailerNext.Standalone.Helpers;
 using RazorEngine.Configuration;
 using RazorEngine.Templating;
 
 namespace ActionMailerNext.Standalone
 {
+    using System.Collections.Generic;
+
     /// <summary>
     ///     This is a standalone MailerBase that relies on RazorEngine to generate emails.
     /// </summary>
@@ -12,19 +16,26 @@ namespace ActionMailerNext.Standalone
     {
         /// <summary>
         /// </summary>
-        public IMailAttributes MailAttributes;
+        public MailAttributes MailAttributes { get;  set; }
 
-        private ITemplateService _templateService;
+        
+        /// <summary>
+        /// We use a singleton instance of the templating service in the mailer, to facilitate 
+        /// caching of resolved and compiled views.
+        /// </summary>
+        private static ITemplateService templateService;
+
+        private ITemplateResolver templateResolver;
 
         /// <summary>
         ///     Initializes MailerBase using the default SmtpMailSender and system Encoding.
         /// </summary>
         /// <param name="mailAttributes"></param>
         /// <param name="mailSender">The underlying mail sender to use for delivering mail.</param>
-        protected RazorMailerBase(IMailAttributes mailAttributes = null, IMailSender mailSender = null)
+        protected RazorMailerBase(MailAttributes mailAttributes = null, IMailSender mailSender = null)
         {
-            MailAttributes = mailAttributes ?? MailMethodUtil.GetAttributes();
-            MailSender = mailSender ?? MailMethodUtil.GetSender();
+            MailAttributes = mailAttributes ?? new MailAttributes();
+            MailSender = mailSender ?? new SmtpMailSender();
 
             ViewBag = new DynamicViewBag();
         }
@@ -32,7 +43,12 @@ namespace ActionMailerNext.Standalone
         /// <summary>
         ///     The path to the folder containing your Razor views.
         /// </summary>
-        public abstract string ViewPath { get; }
+        public abstract string GlobalViewPath { get; }
+
+        /// <summary>
+        ///     The view settings needed to implement HTML/URL Helpers
+        /// </summary>
+        public abstract ViewSettings ViewSettings { get;}
 
         /// <summary>
         ///     The underlying IMailSender to use for outgoing messages.
@@ -42,7 +58,17 @@ namespace ActionMailerNext.Standalone
         /// <summary>
         ///     A template resolver that is used to find the appropriate templates
         /// </summary>
-        public ITemplateResolver TemplateResolver { get; set; }
+        public ITemplateResolver TemplateResolver
+        {
+            get
+            {
+                return this.templateResolver ?? (this.templateResolver = new ExtendedTemplateResolver(GlobalViewPath));
+            }
+            set
+            {
+                this.templateResolver = value;
+            }
+        }
 
         /// <summary>
         ///     A template base that can add more features to RazorEngine
@@ -52,24 +78,24 @@ namespace ActionMailerNext.Standalone
         /// <summary>
         ///     Used to add needed variable
         /// </summary>
-        public DynamicViewBag ViewBag { get; set; }
-
+        public dynamic ViewBag { get; set; }
 
         private ITemplateService TemplateService
         {
             get
             {
-                if (_templateService == null)
+                if (templateService == null)
                 {
                     var config = new TemplateServiceConfiguration
                     {
-                        BaseTemplateType = TemplateBaseType ?? typeof (TemplateBase<>),
-                        Resolver = TemplateResolver ?? new RazorTemplateResolver(ViewPath),
+                        BaseTemplateType = TemplateBaseType ?? typeof(ExtendedTemplateBase<>),
+                        Resolver = TemplateResolver,
                     };
 
-                    _templateService = new TemplateService(config);
+                    templateService = new TemplateService(config);
+                    
                 }
-                return _templateService;
+                return templateService;
             }
         }
 
@@ -90,7 +116,7 @@ namespace ActionMailerNext.Standalone
         ///     This method is called after each mail is sent.
         /// </summary>
         /// <param name="mail">The mail that was sent.</param>
-        void IMailInterceptor.OnMailSent(IMailAttributes mail)
+        void IMailInterceptor.OnMailSent(MailAttributes mail)
         {
             OnMailSent(mail);
         }
@@ -99,7 +125,7 @@ namespace ActionMailerNext.Standalone
         ///     This method is called when onMailsent is fired.
         /// </summary>
         /// <param name="mail"></param>
-        public void OnMailSent(IMailAttributes mail)
+        public void OnMailSent(MailAttributes mail)
         {
         }
 
@@ -107,11 +133,13 @@ namespace ActionMailerNext.Standalone
         ///     Constructs your mail message ready for delivery.
         /// </summary>
         /// <param name="viewName">The view to use when rendering the message body.</param>
+        /// <param name="masterName">the main layout</param>
         /// <param name="trimBody">Whether or not we should trim whitespace from the beginning and end of the message body.</param>
+        /// <param name="externalViewPath">a View path that overrides the one set by the property</param>
         /// <returns>An EmailResult that you can Deliver();</returns>
-        public virtual RazorEmailResult Email(string viewName, bool trimBody = true)
+        public virtual RazorEmailResult Email(string viewName, string masterName = null, bool trimBody = true, string externalViewPath = null)
         {
-            return Email<object>(viewName, null, trimBody);
+            return Email<object>(viewName, null, masterName, trimBody);
         }
 
         /// <summary>
@@ -119,18 +147,46 @@ namespace ActionMailerNext.Standalone
         /// </summary>
         /// <param name="viewName">The view to use when rendering the message body.</param>
         /// <param name="model">The model object used while rendering the message body.</param>
+        /// <param name="masterName">the main layout</param>
         /// <param name="trimBody">Whether or not we should trim whitespace from the beginning and end of the message body.</param>
+        /// <param name="externalViewPath">a View path that overrides the one set by the property</param>
         /// <returns>An EmailResult that you can Deliver();</returns>
-        public virtual RazorEmailResult Email<T>(string viewName, T model = null, bool trimBody = true) where T : class
+        public virtual RazorEmailResult Email<T>(string viewName, T model = null, string masterName = null, bool trimBody = true, string externalViewPath = null) where T : class
         {
             if (viewName == null)
                 throw new ArgumentNullException("viewName");
+            if (ViewBag != null)
+            {
+                ViewBag.ViewSettings = ViewSettings;
+            }
 
-            var result = new RazorEmailResult(this, MailSender, MailAttributes, viewName, MailAttributes.MessageEncoding,
-                ViewPath, TemplateService, ViewBag);
+            var result = new RazorEmailResult(MailAttributes, viewName, MailAttributes.MessageEncoding, masterName,
+                externalViewPath ?? GlobalViewPath, TemplateService, ViewBag);
 
             result.Compile(model, trimBody);
+
+            foreach (var postprocessor in MailAttributes.PostProcessors)
+            {
+                result.MailAttributes = postprocessor.Execute(result.MailAttributes);
+            }
+
             return result;
+        }
+
+        /// <summary>
+        /// Pre-Compiles the views in the dictionary using a the template resolver
+        /// </summary>
+        /// <param name="views"></param>
+        public virtual void PreCompileViews(IDictionary<string, Type> views)
+        {
+            foreach (var view in views)
+            {
+                var viewName = view.Key;
+                var modelType = view.Value;
+
+                var template = this.TemplateResolver.Resolve(viewName);
+                this.TemplateService.Compile(template, modelType, viewName);
+            }
         }
     }
 }

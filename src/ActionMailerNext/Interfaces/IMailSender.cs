@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace ActionMailerNext.Interfaces
@@ -9,16 +10,30 @@ namespace ActionMailerNext.Interfaces
     public interface IMailSender : IDisposable
     {
         /// <summary>
-        ///     Sends IMailAttributes synchronously.
+        ///     Sends MailAttributes synchronously.
         /// </summary>
         /// <param name="mailAttributes">The SMTPMailMessage message you wish to send.</param>
-        void Send(IMailAttributes mailAttributes);
+        List<IMailResponse> Send(MailAttributes mailAttributes);
 
 
         /// <summary>
-        ///     Sends IMailAttributes asynchronously using tasks.
+        ///     Sends MailAttributes asynchronously using tasks.
         /// </summary>
         /// <param name="mailAttributes">The SMTPMailMessage message you wish to send.</param>
-        Task<IMailAttributes> SendAsync(IMailAttributes mailAttributes);
+        Task<List<IMailResponse>> SendAsync(MailAttributes mailAttributes);
+
+        /// <summary>
+        /// Method to be called directly after defining MailSender to deliver email synchronously.
+        /// </summary>
+        /// <param name="emailResult"></param>
+        /// <returns></returns>
+        List<IMailResponse> Deliver(IEmailResult emailResult);
+
+        /// <summary>
+        /// Method to be called directly after defining MailSender to deliver email asynchronously.
+        /// </summary>
+        /// <param name="emailResult"></param>
+        /// <returns></returns>
+        Task<MailAttributes> DeliverAsync(IEmailResult emailResult);
     }
 }

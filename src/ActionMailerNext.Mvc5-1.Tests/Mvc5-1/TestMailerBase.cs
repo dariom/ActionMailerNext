@@ -24,13 +24,12 @@
 #endregion
 
 using ActionMailerNext.Interfaces;
-using ActionMailerNext.Mvc5_1;
 
-namespace ActionMailer.Net.Mvc5_1.Tests.Mvc5_1
+namespace ActionMailerNext.Mvc5_1.Tests
 {
     public class TestMailerBase : MailerBase
     {
-        public TestMailerBase(IMailAttributes attributes = null, IMailSender sender = null)
+        public TestMailerBase(MailAttributes attributes = null, IMailSender sender = null)
             : base(attributes, sender)
         {
         }
